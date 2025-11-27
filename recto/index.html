@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLINK - Game Master Handbook</title>
+    <link rel="icon" type="image/x-icon" href="blink-logo.ico">
+    <style>
+        /* BLINK Color Palette */
+        :root {
+            --color-gradient-start: #A78AFB; 
+            --color-gradient-end: #7F58E9;   
+            --color-text-dark: #1a1a1a;      
+            --color-text-light: #ffffff;     
+            --color-card-bg: rgba(255, 255, 255, 0.9); 
+            --color-accent-blue: #4AD8E1;    
+            --color-accent-pink: #D450A9;    
+            --color-answer-correct: #4CAF50; 
+            
+            /* Adjusted Group Colors (Filter Buttons) */
+            --color-group-violet-tre-fonce: #340497; /* Very Dark Blue (1-8) */
+            --color-card9-background: #5A5AFB; /* Dark Blue (9-16) */
+            --color-group-cyan: #00BCD4; /* Light Blue / Cyan */
+            --color-group-magenta: #FF4081; /* Rose / Magenta */
+        }
+
+        /* General Styles */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(to bottom right, var(--color-gradient-start), var(--color-gradient-end));
+            color: var(--color-text-dark); 
+            padding: 15px 10px; 
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        h1 { 
+            color: var(--color-text-light); 
+            border-bottom: 3px solid rgba(255, 255, 255, 0.3); 
+            padding-bottom: 15px; 
+            margin-bottom: 25px;
+            font-size: 1.8em; 
+            text-transform: uppercase;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Filter Containers */
+        #filter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+        }
+
+        .filter-button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            color: var(--color-text-light);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+            flex-grow: 1;
+            min-width: 100px;
+            text-align: center;
+        }
+        .filter-button:hover:not(.active) {
+            opacity: 0.8;
+        }
+        .filter-button.active {
+            transform: scale(1.05);
+            border: 2px solid var(--color-text-light);
+        }
+
+        /* Specific Button Colors */
+        #filter-violet { background-color: var(--color-group-violet-tre-fonce); }
+        #filter-dark-blue { background-color: var(--color-card9-background); } 
+        #filter-cyan { background-color: var(--color-group-cyan); }
+        #filter-magenta { background-color: var(--color-group-magenta); }
+        #filter-all { background-color: #333; }
+        
+        /* Search container removed from view */
+        #search-container {
+            display: none;
+        }
+        
+        /* ---------------------------------------------------- */
+        /* FLIP CARD SYSTEM AND RESPONSIVENESS */
+        /* ---------------------------------------------------- */
+        
+        #secrets-container {
+            display: grid;
+            grid-template-columns: 1fr; 
+            gap: 15px; 
+        }
+
+        /* Media Query for Tablets and Desktops (multiple columns) */
+        @media (min-width: 600px) {
+            #secrets-container {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); 
+                gap: 20px; 
+            }
+        }
+
+        .card-container {
+            perspective: 1000px; 
+            width: 100%; 
+            padding-bottom: 70%; 
+            height: 0; 
+            cursor: pointer;
+            position: relative;
+        }
+
+        .flipper {
+            position: absolute; 
+            width: 100%;
+            height: 100%;
+            transition: transform 0.8s; 
+            transform-style: preserve-3d; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .card-container.flipped .flipper {
+            transform: rotateY(180deg);
+        }
+
+        .front, .back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden; 
+            border-radius: 10px;
+            overflow: hidden;
+            
+            background-size: contain; 
+            background-repeat: no-repeat; 
+            background-position: center;
+        }
+
+        .front {
+            z-index: 2;
+            transform: rotateY(0deg);
+        }
+
+        .back {
+            transform: rotateY(180deg);
+            border: 5px solid var(--color-answer-correct); 
+            background-color: white; 
+        }
+        
+    </style>
+</head>
+<body>
+
+    <h1>🚨BLINK - Game Master Validation Tool</h1>
+
+    <div id="filter-container">
+        <button class="filter-button active" id="filter-all" data-color="all">All Cards</button>
+        <button class="filter-button" id="filter-violet" data-color="violet">Very Dark Blue (1-8)</button>
+        <button class="filter-button" id="filter-dark-blue" data-color="dark-blue">Dark Blue (9-16)</button>
+        <button class="filter-button" id="filter-cyan" data-color="cyan">Light Blue (17-23)</button>
+        <button class="filter-button" id="filter-magenta" data-color="magenta">Rose / Magenta (24-31)</button>
+    </div>
+
+    <div id="secrets-container">
+    </div>
+
+    <script>
+        // --- 1. BLINK CARD DATA ---
+        // front_image and back_image file paths use French filenames from user's environment.
+        const secretsData = [
+            // --- BRANDING CARDS (1 to 8): Index 0 to 7 ---
+            {
+                question_text: "Card 1: Can you see the problem ?",
+                front_image: "carte_1.png", 
+                back_image: "réponse_1.png",
+                answer_text: "Problem: **Illegible Contrast.** The word 'BLINK' in white on a very pale yellow/green background makes the brand invisible.",
+                color_group: "violet" 
+            },
+            {
+                question_text: "Card 2: Can you see the problem ?",
+                front_image: "carte_2.png", 
+                back_image: "réponse_2.png",
+                answer_text: "Problem: **Aggressive/Uncoordinated Colors.** Using bright red on an electric lime green is a very poor color match.",
+                color_group: "violet" 
+            },
+            {
+                question_text: "Card 3: Can you see the problem ?",
+                front_image: "carte_3.png", 
+                back_image: "réponse_3.png",
+                answer_text: "Problem: **Visual Chaos/Graphic Overload.** The 'BLINK' brand is lost amid a psychedelic image montage that harms recognition.",
+                color_group: "violet" 
+            },
+            {
+                question_text: "Card 4: TEDDY BEAR AND KISSES - Can you see the problem ?",
+                front_image: "carte_4.png", 
+                back_image: "réponse_4.png",
+                answer_text: "Problem: **Brand Dissonance** / **Inappropriate Messaging**. The image of a violent/bloody 'Teddy Bear' creates strong dissonance with a playful branding game concept. (Keywords: bear, blood, violence, dissonance).",
+                color_group: "violet"
+            },
+            {
+                question_text: "Card 5: Can you see the problem ?",
+                front_image: "carte_5.png", 
+                back_image: "réponse_5.png",
+                answer_text: "Problem: **Misplaced Logo/Ignoring Clear Space.** The logo is placed in the upper left corner of a grid without clear justification.",
+                color_group: "violet" 
+            },
+            {
+                question_text: "Card 6: Can you see the problem ?",
+                front_image: "carte_6.png", 
+                back_image: "réponse_6.png",
+                answer_text: "Problem: **Logo Size/Safety Zone Violation.** The word 'BLINK' is too small, almost invisible, on a large solid area.",
+                color_group: "violet"
+            },
+            {
+                question_text: "Card 7: Can you see the problem ?",
+                front_image: "carte_7.png", 
+                back_image: "réponse_7.png",
+                answer_text: "Problem: **Hierarchy/Font Weight.** Using multiple uncoordinated font styles and sizes lacks professionalism.",
+                color_group: "violet"
+            },
+            {
+                question_text: "Card 8: Can you see the problem ?",
+                front_image: "carte_8.png", 
+                back_image: "réponse_8.png",
+                answer_text: "Problem: **Consistency/Non-standardized Fonts.** The date phrase is written in a completely different font and color from the main text.",
+                color_group: "violet"
+            },
+
+            // --- BRANDING CARDS (9 to 16): Index 8 to 15 ---
+            {
+                question_text: "Card 9: Can you see the problem ?",
+                front_image: "carte_9.png", 
+                back_image: "réponse_9.png",
+                answer_text: "Problem: **Inconsistent Brand Icon.** The game card icon above the BLINK logo uses colors that don't exactly match the official logo palette.",
+                color_group: "dark-blue"
+            },
+            {
+                question_text: "Card 10: Can you see the problem ?",
+                front_image: "carte_10.png", 
+                back_image: "réponse_10.png",
+                answer_text: "Problem: **Logo Use on Similar Color.** The BLINK logo is placed on a violet background that is too similar to its own outline, reducing contrast.",
+                color_group: "dark-blue" 
+            },
+            {
+                question_text: "Card 11: Can you see the problem ?",
+                front_image: "carte_11.png", 
+                back_image: "réponse_11.png",
+                answer_text: "Problem: **Logo Size and Positioning.** The logo is far too small and centered, making the brand name illegible at first glance.",
+                color_group: "dark-blue" 
+            },
+            {
+                question_text: "Card 12: Can you see the problem ?",
+                front_image: "carte_12.png", 
+                back_image: "réponse_12.png",
+                answer_text: "Problem: **Inconsistent Asset Palette.** The cards above the BLINK logo use colors (red, green, black) that are not part of the official BLINK color palette.",
+                color_group: "dark-blue" 
+            },
+            {
+                question_text: "Card 13: Can you see the problem ?",
+                front_image: "carte_13.png", 
+                back_image: "réponse_13.png",
+                answer_text: "Problem: **Logo Safety Space/Masking Violation.** The BLINK logo masks a person's face, violating the basic rule of never obscuring the logo.",
+                color_group: "dark-blue" 
+            },
+            {
+                question_text: "Card 14: Can you see the problem ?",
+                front_image: "carte_14.png", 
+                back_image: "réponse_14.png",
+                answer_text: "Problem: **Isolated Image Without Brand Context.** The card only shows the small generic card icon. Without the BLINK name or slogan, it communicates nothing about the brand.",
+                color_group: "dark-blue" 
+            },
+            {
+                question_text: "Card 15: Can you see the problem ?",
+                front_image: "carte_15.png", 
+                back_image: "réponse_15.png",
+                answer_text: "Problem: **Destructive Filter/Graphic Style.** Using a 'sketch' or 'hand-drawn' effect on the logo makes it look unprofessional and blurry, inconsistent with a crisp digital brand identity.",
+                color_group: "dark-blue" 
+            },
+            {
+                question_text: "Card 16: Can you see the problem ?",
+                front_image: "carte_16.png", 
+                back_image: "réponse_16.png",
+                answer_text: "Problem: **Illegible and Misplaced Text.** The slogan 'THE BRANDING GAME !' is warped and placed on such a steep curve it becomes unreadable. Text must be clearly and legibly aligned.",
+                color_group: "dark-blue" 
+            },
+            
+            // --- BRANDING CARDS (17 to 23): Index 16 to 22 ---
+            {
+                question_text: "Card 17: Can you see the problem ?",
+                front_image: "carte_17.png", 
+                back_image: "réponse_17.png",
+                answer_text: "Problem: **Useless Duplication and Illegible Contrast.** The 'PRESS TO PLAY' button is unnecessarily duplicated, and the white text on a pale cyan background has poor contrast.",
+                color_group: "cyan" 
+            },
+            {
+                question_text: "Card 18: Can you see the problem ?",
+                front_image: "carte_18.png", 
+                back_image: "réponse_18.png",
+                answer_text: "Problem: **Irrelevant Imagery/Thematic Inconsistency.** The two characters in 1950s/retro style clothing have no connection to the modern BLINK branding game concept, creating a stylistic dissonance.",
+                color_group: "cyan" 
+            },
+            {
+                question_text: "Card 32: Can you see the problem ?",
+                front_image: "carte_32.png", 
+                back_image: "réponse_32.png",
+                answer_text: "Problem: **Old Logo Version Included in New Branding.** The card announces 'BLINK IS THE NEW BRANDING GAME!' but uses an older or inconsistent logo inside its main design.",
+                color_group: "cyan" 
+            },
+            {
+                question_text: "Card 19: Can you see the problem ?",
+                front_image: "carte_19.png", 
+                back_image: "réponse_19.png",
+                answer_text: "Problem: **Old Logo Version Included in New Branding.** The card announces 'BLINK IS THE NEW BRANDING GAME!' but uses an older or inconsistent logo inside its main design.",
+                color_group: "cyan" 
+            },
+            {
+                question_text: "Card 20: Can you see the problem ?",
+                front_image: "carte_20.png", 
+                back_image: "réponse_20.png",
+                answer_text: "Problem: **Personal/Irrelevant Imagery.** Using a very specific family photo for a generic day is inappropriate for a gaming brand. The image is too specific and not general.",
+                color_group: "cyan"
+            },
+            {
+                question_text: "Card 21: Can you see the problem ?",
+                front_image: "carte_21.png", 
+                back_image: "réponse_21.png",
+                answer_text: "Problem: **Image/Design Mismatch.** The realistic, retro photo (woman with champagne glass) is placed inside a highly modern and pop graphic frame (pink/blue), creating a major stylistic inconsistency. (Keywords: Retro, style, inconsistency, image).",
+                color_group: "cyan"
+            },
+            {
+                question_text: "Card 22: Can you see the problem ?",
+                front_image: "carte_22.png", 
+                back_image: "réponse_22.png",
+                answer_text: "Problem: **Inconsistent Visual Assets.** The card shows three soccer balls with differing graphic styles (one realistic, one simple 3D, one stylized black/white). There is a complete lack of visual uniformity. (Keywords: Ball, styles, inconsistency, visuals, football).",
+                color_group: "cyan"
+            },
+            {
+                question_text: "Card 23: FOOTBALL GAME at Gerland stadium - Can you see the problem ?",
+                front_image: "carte_23.png", 
+                back_image: "réponse_23.png",
+                answer_text: "Problem: **Illegible Contrast and Poor Hierarchy.** The text 'FOOTBALL GAME' in light purple on a dark purple background is unreadable. The date contrast is also too low. (Keywords: Contrast, legibility, Gerland, football, stadium).",
+                color_group: "cyan"
+            },
+
+            // --- BRANDING CARDS (24 to 31): Index 23 to 30 ---
+            {
+                question_text: "Card 24: Can you see the problem ?",
+                front_image: "carte_24.png", 
+                back_image: "réponse_24.png",
+                answer_text: "Problem: **Excessive Colors/Identity Overflow.** The card uses too many bright primary colors (magenta, cyan, violet) in the background and logo, making the design look cluttered and hard to remember. Lacks breathing room.",
+                color_group: "magenta"
+            },
+            {
+                question_text: "Card 25: TEDDY BEAR AND KISSES - Can you see the problem ?",
+                front_image: "carte_25.png", 
+                back_image: "réponse_25.png",
+                answer_text: "Problem: **Illegible and Unprofessional Font.** The 'Teddy bear and kisses' font is too decorative, hard to read, and unsuitable for a clear brand message. (Keywords: Teddy Bear, font, illegible, decorative, kisses).",
+                color_group: "magenta"
+            },
+            {
+                question_text: "Card 26: FOOTBALL GAME - Can you see the problem ?",
+                front_image: "carte_26.png", 
+                back_image: "réponse_26.png",
+                answer_text: "Problem: **Poor Hierarchy and Spacing (Kerning/Leading).** The text at the bottom is compressed and unbalanced. Lines are too tight, and mixing caps/lowercase ('lyon, France') creates typographic inconsistency. (Keywords: Spacing, typography, Lyon, kick-off, France, stadium).",
+                color_group: "magenta"
+            },
+            {
+                question_text: "Card 27: B L INK IS THE NEW BRANDING GAME! - Can you see the problem ?",
+                front_image: "carte_27.png", 
+                back_image: "réponse_27.png",
+                answer_text: "Problem: **Inconsistent Letter Spacing (Kerning).** The arbitrary spacing in the title 'B L INK IS THE NEW' is visually jarring and hard to decode quickly. (Keywords: Spacing, B L INK, kerning).",
+                color_group: "magenta"
+            },
+            {
+                question_text: "Card 28: FOOTBALL GAME - Can you see the problem ?",
+                front_image: "carte_28.png", 
+                back_image: "réponse_28.png",
+                answer_text: "Problem: **Text Overload and Alignment Issues.** The card contains far too much textual information, which is cluttered and poorly aligned, making the message completely indigestible. (Keywords: Overload, alignment, stadium, Gerland, match).",
+                color_group: "magenta"
+            },
+            {
+                question_text: "Card 29: Can you see the problem ?",
+                front_image: "carte_29.png", 
+                back_image: "réponse_29.png",
+                answer_text: "Problem: **Poor Typographic Usage/Text Block.** Using a thin font for a very long block of text in capital letters without size contrast makes the text visually exhausting and nearly impossible to read. (Keywords: Typography, paragraph, long text, illegible, experience).",
+                color_group: "magenta"
+            },
+            {
+                question_text: "Card 30: Can you see the problem ?",
+                front_image: "carte_30.png", 
+                back_image: "réponse_30.png",
+                answer_text: "Problem: **Non-Compliant Brand Name Use (Lowercase).** The brand 'blink' and slogan 'the branding game' are in lowercase, contrary to the typical uppercase use of the BLINK brand and standard logo rules. (Keywords: Lowercase, brand, non-compliant, convention, blink).",
+                color_group: "magenta"
+            },
+            
+            // --- CARD 31 (Maintained for indexing) ---
+            {
+                question_text: "Describe the color 'Magenta' without using the words red, blue, or purple.",
+                front_image: "carte_31.png", 
+                back_image: "réponse_31.png",
+                answer_text: "Challenge: Describe the color. Example: A vivid mix of pink and fuchsia, the printing color that is neither yellow nor cyan. Arbitrator validates.",
+                color_group: "magenta"
+            }
+        ];
+
+        const container = document.getElementById('secrets-container');
+        const filterButtons = document.querySelectorAll('.filter-button');
+
+        let activeColorFilter = 'all'; // Current filtering state
+
+        // Function to update the active class on filter buttons
+        function setActiveFilterButton(selectedColor) {
+            filterButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`[data-color="${selectedColor}"]`).classList.add('active');
+        }
+
+        function renderSecrets() {
+            container.innerHTML = '';
+            
+            secretsData.forEach(secret => {
+                const cardIndex = secretsData.indexOf(secret); // Index starts at 0 (Card 1 is index 0)
+                
+                // 1. Filtering by color/index logic
+                if (activeColorFilter !== 'all') {
+                    
+                    // Rule 1: Very Dark Blue (Cards 1 to 8) -> Index 0 to 7
+                    if (activeColorFilter === 'violet') {
+                        if (cardIndex < 0 || cardIndex > 7) {
+                            return; 
+                        }
+                    } 
+                    // Rule 2: Dark Blue (Cards 9 to 16) -> Index 8 to 15
+                    else if (activeColorFilter === 'dark-blue') {
+                         if (cardIndex < 8 || cardIndex > 15) { 
+                            return; 
+                        }
+                    }
+                    // Rule 3: Light Blue (Cards 17 to 23) -> Index 16 to 22
+                    else if (activeColorFilter === 'cyan') { 
+                        if (cardIndex < 16 || cardIndex > 22) {
+                            return;
+                        }
+                    }
+                    // Rule 4: Rose/Magenta (Cards 24 to 31) -> Index 23 to 30
+                    else if (activeColorFilter === 'magenta') { 
+                        if (cardIndex < 23 || cardIndex > 30) {
+                            return;
+                        }
+                    } else {
+                        // Should be impossible if data-color attributes are correct
+                        return;
+                    }
+                }
+                
+                // --- CREATE FLIP CARD ---
+                const cardContainer = document.createElement('div');
+                cardContainer.className = 'card-container';
+                
+                const flipper = document.createElement('div');
+                flipper.className = 'flipper';
+                
+                const front = document.createElement('div');
+                front.className = 'front';
+                front.style.backgroundImage = `url('${secret.front_image}')`;
+                
+                const back = document.createElement('div');
+                back.className = 'back';
+                back.style.backgroundImage = `url('${secret.back_image}')`;
+                back.innerHTML = ``; 
+
+                // Assembly
+                flipper.appendChild(front);
+                flipper.appendChild(back);
+                cardContainer.appendChild(flipper);
+                container.appendChild(cardContainer);
+                
+                // HANDLE CLICK (FLIP)
+                cardContainer.addEventListener('click', () => {
+                    document.querySelectorAll('.card-container.flipped').forEach(openCard => {
+                        if (openCard !== cardContainer) {
+                            openCard.classList.remove('flipped');
+                        }
+                    });
+                    cardContainer.classList.toggle('flipped');
+                });
+            });
+            
+            // Handle no results
+            if (container.children.length === 0) {
+                let message = `No cards found in this color category.`;
+                container.innerHTML = `<p style="text-align: center; margin-top: 30px; color: white; background: var(--color-accent-pink); padding: 10px; border-radius: 5px;">${message}</p>`;
+            }
+        }
+
+        // --- HANDLE COLOR FILTER EVENTS ---
+        filterButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                activeColorFilter = e.target.getAttribute('data-color');
+                setActiveFilterButton(activeColorFilter);
+                
+                renderSecrets();
+            });
+        });
+
+        // Initialization
+        renderSecrets();
+    </script>
+
+</body>
+</html>
